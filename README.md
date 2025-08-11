@@ -7,8 +7,8 @@ Interactive TUI to review and clean up local Git branches with protect/skip/dele
 Clone the repo and link the binary into your PATH:
 
 ```bash
-# Clone (replace with your URL once hosted)
-git clone https://github.com/your-username/git-branch-manager.git ~/dev/git-branch-manager
+# Clone
+git clone https://github.com/dennislysenko/git-branch-manager.git ~/dev/git-branch-manager
 
 # Link to your per-user bin and ensure PATH
 mkdir -p ~/.local/bin
