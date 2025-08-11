@@ -4,7 +4,13 @@ Interactive TUI to review and clean up local Git branches with protect/skip/dele
 
 ## Install
 
-Clone the repo and link the binary into your PATH:
+One-line installer (creates `~/dev` if needed, detects bash/zsh, updates PATH, symlinks command):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dennislysenko/git-branch-manager/main/install.sh | sh
+```
+
+Or manual:
 
 ```bash
 # Clone
@@ -14,10 +20,13 @@ git clone https://github.com/dennislysenko/git-branch-manager.git ~/dev/git-bran
 mkdir -p ~/.local/bin
 ln -sf ~/dev/git-branch-manager/bin/git-branch-manager ~/.local/bin/git-branch-manager
 
-# Ensure ~/.local/bin is on PATH for zsh
+# Ensure ~/.local/bin is on PATH (bash or zsh)
+if [ -n "$ZSH_VERSION" ]; then PROFILE="$HOME/.zshrc"; fi
+if [ -n "$BASH_VERSION" ]; then PROFILE="${PROFILE:-$HOME/.bash_profile}"; fi
+PROFILE="${PROFILE:-$HOME/.zshrc}"
 if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
-  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-  source ~/.zshrc
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$PROFILE"
+  . "$PROFILE"
 fi
 
 # Verify
