@@ -6,6 +6,8 @@ Interactive TUI to review and clean up local Git branches with protect/skip/dele
 
 One-line installer (creates `~/dev` if needed, detects bash/zsh, updates PATH, symlinks command):
 
+**NOTE**: the install script was ENTIRELY AI-generated and is un-tested. (So far). If you are brave enough to test it - let me know if it works and I'll update the doc.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dennislysenko/git-branch-manager/main/install.sh | sh
 ```
