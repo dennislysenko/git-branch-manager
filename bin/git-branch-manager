@@ -1,0 +1,230 @@
+#!/bin/bash
+
+# Interactive Git Branch Manager
+# Usage: ./git-branch-manager.sh
+# Options: s (skip), p (protect), d (delete), D (force delete)
+
+set -e
+
+# Text formatting
+BOLD='\033[1m'
+GREY='\033[90m'
+NC='\033[0m' # No Color
+
+# Configuration
+PROTECTED_BRANCHES_FILE=".gitprotectedbranches"
+DEFAULT_PROTECTED_BRANCHES=("master" "develop" "production" "main")
+
+# Function to print formatted output
+print_bold() {
+    local message=$1
+    echo -e "${BOLD}${message}${NC}"
+}
+
+print_grey() {
+    local message=$1
+    echo -e "${GREY}${message}${NC}"
+}
+
+# Function to initialize protected branches file
+init_protected_branches() {
+    if [[ ! -f "$PROTECTED_BRANCHES_FILE" ]]; then
+        echo "Creating $PROTECTED_BRANCHES_FILE with default protected branches..."
+        printf "%s\n" "${DEFAULT_PROTECTED_BRANCHES[@]}" > "$PROTECTED_BRANCHES_FILE"
+    fi
+}
+
+# Function to read protected branches
+read_protected_branches() {
+    if [[ -f "$PROTECTED_BRANCHES_FILE" ]]; then
+        cat "$PROTECTED_BRANCHES_FILE"
+    fi
+}
+
+# Function to check if branch is protected
+is_protected() {
+    local branch=$1
+    
+    if [[ -f "$PROTECTED_BRANCHES_FILE" ]]; then
+        grep -Fxq "$branch" "$PROTECTED_BRANCHES_FILE"
+    else
+        # Check against default protected branches
+        for default_branch in "${DEFAULT_PROTECTED_BRANCHES[@]}"; do
+            if [[ "$branch" == "$default_branch" ]]; then
+                return 0
+            fi
+        done
+        return 1
+    fi
+}
+
+# Function to add branch to protected list
+protect_branch() {
+    local branch=$1
+    if ! is_protected "$branch"; then
+        echo "$branch" >> "$PROTECTED_BRANCHES_FILE"
+        echo "✓ Protected branch: $branch"
+    else
+        echo "Branch $branch is already protected"
+    fi
+}
+
+# Function to delete branch
+delete_branch() {
+    local branch=$1
+    local force=$2
+    
+    if [[ "$force" == "true" ]]; then
+        if git branch -D "$branch" 2>/dev/null; then
+            echo "✓ Force deleted branch: $branch"
+            return 0
+        else
+            echo "✗ Failed to force delete branch: $branch"
+            return 1
+        fi
+    else
+        if git branch -d "$branch" 2>/dev/null; then
+            echo "✓ Deleted branch: $branch"
+            return 0
+        else
+            echo "✗ Failed to delete branch: $branch (use D for force delete)"
+            return 1
+        fi
+    fi
+}
+
+# Function to show help
+show_help() {
+    echo
+    echo "Options:"
+    echo "  s - Skip this branch"
+    echo "  p - Protect this branch (add to .gitprotectedbranches)"
+    echo "  d - Delete this branch (safe delete)"
+    echo "  D - Force delete this branch"
+    echo "  q - Quit"
+    echo "  ? - Show this help"
+    echo
+}
+
+# Function to get current branch
+get_current_branch() {
+    git branch --show-current
+}
+
+# Main function
+main() {
+    # Check if we're in a git repository
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        echo "Error: Not in a git repository"
+        exit 1
+    fi
+
+    echo "=== Interactive Git Branch Manager ==="
+    echo
+    
+    # Initialize protected branches file
+    init_protected_branches
+    
+    # Get current branch
+    local current_branch
+    current_branch=$(get_current_branch)
+    
+    # Get all branches except current
+    local branches=()
+    while IFS= read -r branch; do
+        [[ -n "$branch" && "$branch" != "$current_branch" ]] && branches+=("$branch")
+    done < <(git branch --format='%(refname:short)')
+    
+    if [[ ${#branches[@]} -eq 0 ]]; then
+        echo "No other branches found besides current branch: $current_branch"
+        exit 0
+    fi
+    
+    print_grey "Current branch: $current_branch"
+    echo
+    
+    # Process each branch
+    local current_index=0
+    local total_branches=${#branches[@]}
+    
+    for branch in "${branches[@]}"; do
+        # Skip if protected
+        if is_protected "$branch"; then
+            echo "Skipping protected branch: $branch"
+            continue
+        fi
+        
+        ((current_index++))
+        
+        echo
+        print_bold "Branch: $branch [$current_index/$total_branches]"
+        
+        # Show branch info
+        local last_commit
+        last_commit=$(git log -1 --format="%h %s" "$branch" 2>/dev/null || echo "No commits")
+        echo "Last commit: $last_commit"
+        
+        # Show branch age
+        local branch_age
+        branch_age=$(git log -1 --format="%cr" "$branch" 2>/dev/null || echo "Unknown")
+        echo "Last updated: $branch_age"
+        
+        # Prompt for action
+        while true; do
+            echo -ne "${BOLD}Action [s/p/d/D/q/?]: ${NC}"
+            read -n 1 -r action
+            echo
+            
+            case $action in
+                s|S)
+                    echo "Skipping $branch"
+                    break
+                    ;;
+                p|P)
+                    protect_branch "$branch"
+                    break
+                    ;;
+                d)
+                    if delete_branch "$branch" false; then
+                        break
+                    fi
+                    ;;
+                D)
+                    echo -n "Are you sure you want to force delete $branch? [y/N]: "
+                    read -n 1 -r confirm
+                    echo
+                    if [[ $confirm =~ ^[Yy]$ ]]; then
+                        if delete_branch "$branch" true; then
+                            break
+                        fi
+                    else
+                        echo "Cancelled force delete of $branch"
+                    fi
+                    ;;
+                q|Q)
+                    echo "Exiting..."
+                    exit 0
+                    ;;
+                \?|h|H)
+                    show_help
+                    ;;
+                *)
+                    echo "Invalid option. Use s, p, d, D, q, or ?"
+                    ;;
+            esac
+        done
+    done
+    
+    echo
+    echo "=== Branch review complete ==="
+    
+    # Show summary of protected branches
+    if [[ -f "$PROTECTED_BRANCHES_FILE" && -s "$PROTECTED_BRANCHES_FILE" ]]; then
+        echo
+        echo "Protected branches:"
+        sed 's/^/  /' "$PROTECTED_BRANCHES_FILE"
+    fi
+}
+
+# Run main function
+main "$@"
